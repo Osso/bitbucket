@@ -251,7 +251,12 @@ async fn create_webhook(
     Ok(())
 }
 
-async fn add_deploy_key(client: &api::Client, repo: String, key: String, label: String) -> Result<()> {
+async fn add_deploy_key(
+    client: &api::Client,
+    repo: String,
+    key: String,
+    label: String,
+) -> Result<()> {
     let result = client.add_deploy_key(&repo, &key, &label).await?;
     println!("Added deploy key: {}", result["id"].as_u64().unwrap_or(0));
     Ok(())
@@ -269,10 +274,18 @@ async fn run_command(client: &api::Client, command: Commands) -> Result<()> {
         Commands::Branches { repo } => list_branches(client, repo).await,
         Commands::Webhooks { repo } => list_webhooks(client, repo).await,
         Commands::DeployKeys { repo } => list_deploy_keys(client, repo).await,
-        Commands::Create { slug, public, description } => create_repo(client, slug, public, description).await,
-        Commands::Webhook { repo, url, events, description, inactive } => {
-            create_webhook(client, repo, url, events, description, inactive).await
-        }
+        Commands::Create {
+            slug,
+            public,
+            description,
+        } => create_repo(client, slug, public, description).await,
+        Commands::Webhook {
+            repo,
+            url,
+            events,
+            description,
+            inactive,
+        } => create_webhook(client, repo, url, events, description, inactive).await,
         Commands::DeployKey { repo, key, label } => add_deploy_key(client, repo, key, label).await,
         Commands::Config { .. } => unreachable!(),
     }
