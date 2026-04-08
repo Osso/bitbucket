@@ -171,58 +171,111 @@ fn run_config(
     Ok(())
 }
 
-async fn run_command(client: &api::Client, command: Commands) -> Result<()> {
-    let json = match command {
-        Commands::User => client.get_user().await?,
-        Commands::Repos { page } => client.list_repositories(page).await?,
-        Commands::Repo { slug } => client.get_repository(&slug).await?,
-        Commands::Prs { repo, state } => client.list_pull_requests(&repo, state.as_deref()).await?,
-        Commands::Pr { repo, id } => client.get_pull_request(&repo, id).await?,
-        Commands::Pipelines { repo } => client.list_pipelines(&repo).await?,
-        Commands::Pipeline { repo, uuid } => client.get_pipeline(&repo, &uuid).await?,
-        Commands::Branches { repo } => client.list_branches(&repo).await?,
-        Commands::Webhooks { repo } => client.list_webhooks(&repo).await?,
-        Commands::DeployKeys { repo } => client.list_deploy_keys(&repo).await?,
-        Commands::Create {
-            slug,
-            public,
-            description,
-        } => {
-            let repo = client
-                .create_repository(&slug, !public, description.as_deref())
-                .await?;
-            println!(
-                "Created: {}",
-                repo["links"]["html"]["href"].as_str().unwrap_or("")
-            );
-            return Ok(());
-        }
-        Commands::Webhook {
-            repo,
-            url,
-            events,
-            description,
-            inactive,
-        } => {
-            let events: Vec<&str> = events.split(',').collect();
-            let webhook = client
-                .create_webhook(&repo, &url, &events, description.as_deref(), !inactive)
-                .await?;
-            println!(
-                "Created webhook: {}",
-                webhook["uuid"].as_str().unwrap_or("")
-            );
-            return Ok(());
-        }
-        Commands::DeployKey { repo, key, label } => {
-            let result = client.add_deploy_key(&repo, &key, &label).await?;
-            println!("Added deploy key: {}", result["id"].as_u64().unwrap_or(0));
-            return Ok(());
-        }
-        Commands::Config { .. } => unreachable!(),
-    };
-    println!("{}", serde_json::to_string_pretty(&json)?);
+async fn print_json(value: serde_json::Value) -> Result<()> {
+    println!("{}", serde_json::to_string_pretty(&value)?);
     Ok(())
+}
+
+async fn get_user(client: &api::Client) -> Result<()> {
+    print_json(client.get_user().await?).await
+}
+
+async fn list_repos(client: &api::Client, page: Option<u32>) -> Result<()> {
+    print_json(client.list_repositories(page).await?).await
+}
+
+async fn get_repo(client: &api::Client, slug: String) -> Result<()> {
+    print_json(client.get_repository(&slug).await?).await
+}
+
+async fn list_prs(client: &api::Client, repo: String, state: Option<String>) -> Result<()> {
+    print_json(client.list_pull_requests(&repo, state.as_deref()).await?).await
+}
+
+async fn get_pr(client: &api::Client, repo: String, id: u32) -> Result<()> {
+    print_json(client.get_pull_request(&repo, id).await?).await
+}
+
+async fn list_pipelines(client: &api::Client, repo: String) -> Result<()> {
+    print_json(client.list_pipelines(&repo).await?).await
+}
+
+async fn get_pipeline(client: &api::Client, repo: String, uuid: String) -> Result<()> {
+    print_json(client.get_pipeline(&repo, &uuid).await?).await
+}
+
+async fn list_branches(client: &api::Client, repo: String) -> Result<()> {
+    print_json(client.list_branches(&repo).await?).await
+}
+
+async fn list_webhooks(client: &api::Client, repo: String) -> Result<()> {
+    print_json(client.list_webhooks(&repo).await?).await
+}
+
+async fn list_deploy_keys(client: &api::Client, repo: String) -> Result<()> {
+    print_json(client.list_deploy_keys(&repo).await?).await
+}
+
+async fn create_repo(
+    client: &api::Client,
+    slug: String,
+    public: bool,
+    description: Option<String>,
+) -> Result<()> {
+    let repo = client
+        .create_repository(&slug, !public, description.as_deref())
+        .await?;
+    println!(
+        "Created: {}",
+        repo["links"]["html"]["href"].as_str().unwrap_or("")
+    );
+    Ok(())
+}
+
+async fn create_webhook(
+    client: &api::Client,
+    repo: String,
+    url: String,
+    events: String,
+    description: Option<String>,
+    inactive: bool,
+) -> Result<()> {
+    let events: Vec<&str> = events.split(',').collect();
+    let webhook = client
+        .create_webhook(&repo, &url, &events, description.as_deref(), !inactive)
+        .await?;
+    println!(
+        "Created webhook: {}",
+        webhook["uuid"].as_str().unwrap_or("")
+    );
+    Ok(())
+}
+
+async fn add_deploy_key(client: &api::Client, repo: String, key: String, label: String) -> Result<()> {
+    let result = client.add_deploy_key(&repo, &key, &label).await?;
+    println!("Added deploy key: {}", result["id"].as_u64().unwrap_or(0));
+    Ok(())
+}
+
+async fn run_command(client: &api::Client, command: Commands) -> Result<()> {
+    match command {
+        Commands::User => get_user(client).await,
+        Commands::Repos { page } => list_repos(client, page).await,
+        Commands::Repo { slug } => get_repo(client, slug).await,
+        Commands::Prs { repo, state } => list_prs(client, repo, state).await,
+        Commands::Pr { repo, id } => get_pr(client, repo, id).await,
+        Commands::Pipelines { repo } => list_pipelines(client, repo).await,
+        Commands::Pipeline { repo, uuid } => get_pipeline(client, repo, uuid).await,
+        Commands::Branches { repo } => list_branches(client, repo).await,
+        Commands::Webhooks { repo } => list_webhooks(client, repo).await,
+        Commands::DeployKeys { repo } => list_deploy_keys(client, repo).await,
+        Commands::Create { slug, public, description } => create_repo(client, slug, public, description).await,
+        Commands::Webhook { repo, url, events, description, inactive } => {
+            create_webhook(client, repo, url, events, description, inactive).await
+        }
+        Commands::DeployKey { repo, key, label } => add_deploy_key(client, repo, key, label).await,
+        Commands::Config { .. } => unreachable!(),
+    }
 }
 
 #[tokio::main]
